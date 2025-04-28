@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     // Generate unique filenames based on video ID and timestamp
     const timestamp = Date.now();
     const videoFilename = `${videoId}-${timestamp}.mp4`;
-    const thumbnailFilename = `${videoId}-${timestamp}.jpg`;
+    const thumbnailFilename = `${videoId}.webp`;
     
     const videoPath = path.join(TEMP_DIR, videoFilename);
     const thumbnailPath = path.join(TEMP_DIR, thumbnailFilename);

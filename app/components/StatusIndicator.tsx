@@ -1,12 +1,20 @@
 'use client';
 
+import { motion } from 'framer-motion';
+
 interface StatusIndicatorProps {
   status: string;
 }
 
 export default function StatusIndicator({ status }: StatusIndicatorProps) {
   return (
-    <div className="my-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.3 }}
+      className="my-4 p-4 bg-blue-50 dark:bg-blue-900/20 backdrop-blur-sm border border-blue-200 dark:border-blue-800 rounded-lg shadow-sm"
+    >
       <div className="flex items-center">
         <div className="mr-3 flex-shrink-0">
           <svg className="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -16,16 +24,28 @@ export default function StatusIndicator({ status }: StatusIndicatorProps) {
         </div>
         <div>
           <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300">Processing</h3>
-          <div className="mt-1 text-sm text-blue-700 dark:text-blue-400">
+          <motion.div 
+            key={status}
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="mt-1 text-sm text-blue-700 dark:text-blue-400"
+          >
             {status}
-          </div>
+          </motion.div>
         </div>
       </div>
       <div className="mt-3">
         <div className="h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
-          <div className="h-full bg-blue-600 dark:bg-blue-400 rounded-full w-full animate-pulse"></div>
+          <motion.div 
+            initial={{ width: '5%' }}
+            animate={{ 
+              width: ['5%', '95%'],
+              transition: { duration: 3, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }
+            }}
+            className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
+          />
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 } 

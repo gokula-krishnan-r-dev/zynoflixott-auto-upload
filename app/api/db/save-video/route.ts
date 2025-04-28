@@ -18,6 +18,25 @@ async function connectToDatabase() {
   return client;
 }
 
+// Function to validate if a string is a valid MongoDB ObjectId
+function isValidObjectId(id: string): boolean {
+  try {
+    // Check if the string is a valid hex string of 24 characters
+    return /^[0-9a-fA-F]{24}$/.test(id);
+  } catch (error) {
+    return false;
+  }
+}
+
+// Function to create a new ObjectId from a string or create a new one if invalid
+function createObjectId(id?: string): ObjectId {
+  if (id && isValidObjectId(id)) {
+    return new ObjectId(id);
+  }
+  // If id is invalid or not provided, create a new ObjectId
+  return new ObjectId();
+}
+
 export async function POST(request: NextRequest) {
   try {
     const videoData = await request.json();
@@ -40,11 +59,16 @@ export async function POST(request: NextRequest) {
     
     // Add additional fields and defaults
     const now = new Date();
-    const userId = process.env.DEFAULT_USER_ID || '66cb15b1fbbbaed0d6f22e53'; // Default user ID
+    let userId = process.env.DEFAULT_USER_ID || '66cb15b1fbbbaed0d6f22e53'; // Default user ID
+    
+    console.log(`Using user ID: ${userId}`);
+    
+    // Use a default ObjectId if userId is not valid
+    const userObjectId = createObjectId(userId);
     
     const document = {
       ...videoData,
-      user: new ObjectId(userId),
+      user: userObjectId,
       viewsId: [],
       likesId: [],
       status: true,
@@ -96,7 +120,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in MongoDB save API:', error);
     return NextResponse.json(
-      { error: 'An unexpected error occurred' },
+      { error: error instanceof Error ? error.message : 'An unexpected error occurred' },
       { status: 500 }
     );
   }

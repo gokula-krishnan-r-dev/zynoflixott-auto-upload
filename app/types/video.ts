@@ -32,6 +32,19 @@ export interface VideoItem {
     commentCount: number;
   };
   selected?: boolean;
+  // Additional fields for uploaded videos
+  title?: string;
+  description?: string;
+  thumbnail?: string;
+  preview_video?: string;
+  original_video?: string;
+  language?: string[];
+  views?: number;
+  likes?: number;
+  duration?: string;
+  category?: string[];
+  certification?: string;
+  _id?: string;
 }
 
 export interface UploadedVideo {
