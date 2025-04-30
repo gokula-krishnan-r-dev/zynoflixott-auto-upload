@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     // Generate unique filenames based on video ID and timestamp
     const timestamp = Date.now();
     const videoFilename = `${videoId}-${timestamp}.mp4`;
-    const thumbnailFilename = `${videoId}.webp`;
+    const thumbnailFilename = `${videoId}-${timestamp}.webp`;
     
     const videoPath = path.join(TEMP_DIR, videoFilename);
     const thumbnailPath = path.join(TEMP_DIR, thumbnailFilename);
@@ -40,35 +40,34 @@ export async function POST(request: NextRequest) {
     
     try {
       // Download video
-      await execPromise(`yt-dlp -f "best[height<=720]" "${videoUrl}" -o "${videoPath}"`);
+      await execPromise(`sudo yt-dlp  --cookies /home/azureuser/youtube.com_cookies.txt -f "best[height<=720]" "${videoUrl}" -o "${videoPath}"`);
       
-      // Download thumbnail directly using yt-dlp thumbnail extraction feature
-      // Instead of using --write-thumbnail with a separate command, download the thumbnail using ffmpeg
-      const thumbCommand = `ffmpeg -i "${videoPath}" -vframes 1 -q:v 2 "${thumbnailPath}"`;
-      await execPromise(thumbCommand);
+      // Try downloading the thumbnail directly with yt-dlp first (more reliable)
+      console.log("Downloading thumbnail with yt-dlp...");
+      const thumbBaseName = path.join(TEMP_DIR, `${videoId}-${timestamp}`);
+      await execPromise(`yt-dlp --write-thumbnail --skip-download "${videoUrl}" -o "${thumbBaseName}"`);
       
-      // Verify thumbnail exists
-      if (!fs.existsSync(thumbnailPath)) {
-        console.log("Thumbnail wasn't created with ffmpeg, trying alternative method...");
-        // Alternative method: download thumbnail directly with yt-dlp and rename it
-        const tempThumbPath = path.join(TEMP_DIR, `thumb-${timestamp}.jpg`);
-        await execPromise(`yt-dlp --write-thumbnail --skip-download --convert-thumbnails jpg "${videoUrl}" -o "${tempThumbPath}"`);
+      // Find the downloaded thumbnail which might have various extensions
+      const tempDir = fs.readdirSync(TEMP_DIR);
+      const thumbPattern = new RegExp(`${videoId}-${timestamp}\\.(jpg|webp|png)$`);
+      const thumbFile = tempDir.find(file => thumbPattern.test(file));
+      
+      if (thumbFile) {
+        // Found a thumbnail downloaded by yt-dlp
+        const downloadedThumbPath = path.join(TEMP_DIR, thumbFile);
+        fs.copyFileSync(downloadedThumbPath, thumbnailPath);
+        console.log(`Thumbnail downloaded successfully with yt-dlp: ${thumbFile}`);
+      } else {
+        // Fallback: extract thumbnail from video using ffmpeg
+        console.log("Thumbnail not found with yt-dlp, extracting from video with ffmpeg...");
+        const thumbCommand = `ffmpeg -i "${videoPath}" -vframes 1 -q:v 2 "${thumbnailPath}"`;
+        await execPromise(thumbCommand);
         
-        // Find the downloaded thumbnail which might have a different extension
-        const tempDir = fs.readdirSync(TEMP_DIR);
-        const thumbFile = tempDir.find(file => 
-          file.startsWith(`thumb-${timestamp}`) && 
-          (file.endsWith('.jpg') || file.endsWith('.webp') || file.endsWith('.png'))
-        );
-        
-        if (thumbFile) {
-          // Copy the found thumbnail to the expected thumbnail path
-          fs.copyFileSync(path.join(TEMP_DIR, thumbFile), thumbnailPath);
-          // Delete the original thumbnail
-          fs.unlinkSync(path.join(TEMP_DIR, thumbFile));
-        } else {
-          // If all else fails, create a simple black image as thumbnail
-          await execPromise(`ffmpeg -f lavfi -i color=c=black:s=1280x720 -frames:v 1 "${thumbnailPath}"`);
+        // Verify the ffmpeg extraction worked
+        if (!fs.existsSync(thumbnailPath)) {
+          console.log("Thumbnail extraction failed with ffmpeg, creating fallback thumbnail");
+          // Last resort: create a simple colored thumbnail
+          await execPromise(`ffmpeg -f lavfi -i color=c=blue:s=1280x720 -frames:v 1 "${thumbnailPath}"`);
         }
       }
       
