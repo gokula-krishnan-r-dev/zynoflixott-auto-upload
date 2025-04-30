@@ -66,14 +66,14 @@ export async function POST(request: NextRequest) {
       } else {
         // Fallback: extract thumbnail from video using ffmpeg
         console.log("Thumbnail not found with yt-dlp, extracting from video with ffmpeg...");
-        const thumbCommand = `ffmpeg --cookies /home/azureuser/youtube.com_cookies.txt -i  "${videoPath}" -vframes 1 -q:v 2 "${thumbnailPath}"`;
+        const thumbCommand = `ffmpeg  -i  "${videoPath}" -vframes 1 -q:v 2 "${thumbnailPath}"`;
         await execPromise(thumbCommand);
         
         // Verify the ffmpeg extraction worked
         if (!fs.existsSync(thumbnailPath)) {
           console.log("Thumbnail extraction failed with ffmpeg, creating fallback thumbnail");
           // Last resort: create a simple colored thumbnail
-          await execPromise(`ffmpeg --cookies /home/azureuser/youtube.com_cookies.txt -f lavfi -i color=c=blue:s=1280x720 -frames:v 1 "${thumbnailPath}"`);
+          await execPromise(`ffmpeg  -f lavfi -i color=c=blue:s=1280x720 -frames:v 1 "${thumbnailPath}"`);
         }
       }
       
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       }
       
       // Get video duration
-      const { stdout: durationOutput } = await execPromise(`ffprobe --cookies /home/azureuser/youtube.com_cookies.txt -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`);
+      const { stdout: durationOutput } = await execPromise(`ffprobe  -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`);
       const duration = parseFloat(durationOutput.trim());
       
       console.log(`Download completed for YouTube video: ${videoId}`);
