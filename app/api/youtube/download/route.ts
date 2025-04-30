@@ -55,7 +55,13 @@ export async function POST(request: NextRequest) {
       if (thumbFile) {
         // Found a thumbnail downloaded by yt-dlp
         const downloadedThumbPath = path.join(TEMP_DIR, thumbFile);
-        fs.copyFileSync(downloadedThumbPath, thumbnailPath);
+        // fs.copyFileSync(downloadedThumbPath, thumbnailPath);
+        if (downloadedThumbPath !== thumbnailPath) {
+          fs.copyFileSync(downloadedThumbPath, thumbnailPath);
+        } else {
+          console.log("Skipping copy: source and destination are the same.");
+        }
+        
         console.log(`Thumbnail downloaded successfully with yt-dlp: ${thumbFile}`);
       } else {
         // Fallback: extract thumbnail from video using ffmpeg
