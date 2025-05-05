@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     console.log(`Using user ID: ${userId}`);
     
     // Use a default ObjectId if userId is not valid
-    const userObjectId = createObjectId(userId);
+    const userObjectId = createObjectId("681351b5a6361dff599447be");
     
     const document = {
       ...videoData,
