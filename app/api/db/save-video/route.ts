@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       status: true,
       is_banner_video: false,
       is_active_video: true,
-      created_by_id: userId,
+      created_by_id: "68188050537693dd3a82b4e0",
       created_by_name: 'admin',
       processedImages: {
         medium: {
