@@ -10,6 +10,8 @@ interface SearchFormProps {
   limit: number;
   setLimit: (limit: number) => void;
   isLoading: boolean;
+  setLanguage: (language: string) => void;
+  language: string;
 }
 
 export default function SearchForm({ 
@@ -18,7 +20,9 @@ export default function SearchForm({
   setSearchQuery, 
   limit, 
   setLimit, 
-  isLoading 
+  isLoading,
+  setLanguage,
+  language 
 }: SearchFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +91,47 @@ export default function SearchForm({
                   {value}
                 </option>
               ))}
+            </select>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.3 }}
+          >
+            <select
+              id="language"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2.5 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+              disabled={isLoading}
+            >
+                   {/* Indian Languages */}
+                   <option value="hindi">Hindi</option>
+              <option value="tamil">Tamil</option>
+              <option value="telugu">Telugu</option>
+              <option value="malayalam">Malayalam</option>
+              <option value="kannada">Kannada</option>
+              <option value="bengali">Bengali</option>
+              <option value="marathi">Marathi</option>
+              <option value="punjabi">Punjabi</option>
+              <option value="gujarati">Gujarati</option>
+              <option value="odia">Odia</option>
+              <option value="urdu">Urdu</option>
+              {/* Global Languages */}
+              <option value="english">English</option>
+              <option value="spanish">Spanish</option>
+              <option value="french">French</option>
+              <option value="german">German</option>
+              <option value="italian">Italian</option>
+              <option value="portuguese">Portuguese</option>
+              <option value="russian">Russian</option>
+              <option value="japanese">Japanese</option>
+              <option value="chinese">Chinese (Mandarin)</option>
+              <option value="arabic">Arabic</option>
+              <option value="korean">Korean</option>
+              
+         
             </select>
           </motion.div>
           

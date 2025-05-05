@@ -16,6 +16,7 @@ export default function DashboardContent() {
   const [uploadedVideos, setUploadedVideos] = useState<VideoItem[]>([]);
   const [currentStatus, setCurrentStatus] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'search' | 'uploaded'>('search');
+  const [language, setLanguage] = useState<string>('english');
 
   // Load any previously uploaded videos from localStorage on initial load
   useEffect(() => {
@@ -119,7 +120,7 @@ export default function DashboardContent() {
             thumbnail: uploadData.thumbnailUrl,
             preview_video: uploadData.previewVideoUrl,
             original_video: uploadData.originalVideoUrl,
-            language: ["english"], // Default, can be updated later
+            language: language,
             views: video.statistics?.viewCount || 0,
             likes: video.statistics?.likeCount || 0,
             duration: downloadData.duration,
@@ -177,6 +178,8 @@ export default function DashboardContent() {
             limit={limit}
             setLimit={setLimit}
             isLoading={isLoading}
+            setLanguage={setLanguage}
+            language={language}
           />
         </motion.div>
         
