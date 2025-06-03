@@ -6,6 +6,7 @@ import VideoList from './VideoList';
 import SearchForm from './SearchForm';
 import StatusIndicator from './StatusIndicator';
 import { VideoItem } from '../types/video';
+import VideoPlayerExample from './VideoPlayerExample';
 
 export default function DashboardContent() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -17,6 +18,7 @@ export default function DashboardContent() {
   const [currentStatus, setCurrentStatus] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'search' | 'uploaded'>('search');
   const [language, setLanguage] = useState<string>('english');
+  const [videoQuality, setVideoQuality] = useState<string>('1080p');
 
   // Load any previously uploaded videos from localStorage on initial load
   useEffect(() => {
@@ -46,13 +48,13 @@ export default function DashboardContent() {
       setIsLoading(true);
       setError(null);
       setCurrentStatus('Searching YouTube for videos...');
-      
+
       const response = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}&limit=${videoLimit}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch videos from YouTube');
       }
-      
+
       const data = await response.json();
       setVideos(data.items);
       setCurrentStatus('Search completed. Select videos to download.');
@@ -68,30 +70,34 @@ export default function DashboardContent() {
     try {
       setIsLoading(true);
       setError(null);
-      
+
       for (let i = 0; i < selectedVideos.length; i++) {
         const video = selectedVideos[i];
-        setCurrentStatus(`Processing video ${i+1}/${selectedVideos.length}: ${video.snippet.title}`);
-        
-        // Step 1: Download video
+        setCurrentStatus(`Processing video ${i + 1}/${selectedVideos.length}: ${video.snippet.title}`);
+
+        // Step 1: Download video with the selected quality
+        setCurrentStatus(`Downloading YouTube video: ${video.snippet.title} (${videoQuality})`);
         const downloadResponse = await fetch('/api/youtube/download', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ videoId: video.id.videoId }),
+          body: JSON.stringify({
+            videoId: video.id.videoId,
+            quality: videoQuality
+          }),
         });
-        
+
         if (!downloadResponse.ok) {
           throw new Error(`Failed to download video: ${video.snippet.title}`);
         }
-        
+
         const downloadData = await downloadResponse.json();
-        
-        // Step 2: Upload to Azure Blob Storage
-        setCurrentStatus(`Uploading video to Azure: ${video.snippet.title}`);
+
+        // Step 2: Upload to Azure Blob Storage with HLS generation
+        setCurrentStatus(`Transcoding and uploading video to Azure: ${video.snippet.title}`);
         const uploadResponse = await fetch('/api/azure/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             videoPath: downloadData.videoPath,
             thumbnailPath: downloadData.thumbnailPath,
             videoDetails: {
@@ -99,16 +105,17 @@ export default function DashboardContent() {
               description: video.snippet.description,
               viewCount: video.statistics?.viewCount || 0,
               likeCount: video.statistics?.likeCount || 0,
+              resolution: downloadData.resolution || { quality: videoQuality }
             }
           }),
         });
-        
+
         if (!uploadResponse.ok) {
           throw new Error(`Failed to upload video to Azure: ${video.snippet.title}`);
         }
-        
+
         const uploadData = await uploadResponse.json();
-        
+
         // Step 3: Save to MongoDB
         setCurrentStatus(`Saving video details to database: ${video.snippet.title}`);
         const saveResponse = await fetch('/api/db/save-video', {
@@ -118,25 +125,28 @@ export default function DashboardContent() {
             title: video.snippet.title,
             description: video.snippet.description,
             thumbnail: uploadData.thumbnailUrl,
-            preview_video: uploadData.previewVideoUrl,
+            hlsUrl: uploadData.hlsUrl, // New HLS manifest URL
+            variantUrls: uploadData.variantUrls, // URLs for each resolution variant
+            resolutions: uploadData.resolutions, // Available resolutions
+            sourceResolution: downloadData.resolution?.quality || videoQuality,
             original_video: uploadData.originalVideoUrl,
             language: language,
-            views: video.statistics?.viewCount || 0,
-            likes: video.statistics?.likeCount || 0,
-            duration: downloadData.duration,
+            views: Number(video.statistics?.viewCount || 0),
+            likes: Number(video.statistics?.likeCount || 0),
+            duration: downloadData.duration || '0',
             category: ["general"], // Default, can be updated later
             certification: "U", // Default, can be updated later
           }),
         });
-        
+
         if (!saveResponse.ok) {
           throw new Error(`Failed to save video details: ${video.snippet.title}`);
         }
-        
+
         const savedVideo = await saveResponse.json();
         setUploadedVideos(prev => [...prev, savedVideo]);
       }
-      
+
       setCurrentStatus('All videos processed successfully!');
       setActiveTab('uploaded');
     } catch (err) {
@@ -147,14 +157,14 @@ export default function DashboardContent() {
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       className="space-y-8"
     >
       <div className="bg-white dark:bg-gray-800 backdrop-blur-md bg-opacity-90 dark:bg-opacity-90 rounded-xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-        <motion.h2 
+        <motion.h2
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
@@ -165,15 +175,56 @@ export default function DashboardContent() {
           </svg>
           YouTube Video Automation
         </motion.h2>
-        
-        <motion.div 
+
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.2 }}
+          className="mb-6"
         >
-          <SearchForm 
-            onSearch={handleSearch} 
-            searchQuery={searchQuery} 
+          <div className="flex flex-wrap items-center gap-4 mb-4">
+            <div>
+              <label htmlFor="qualitySelect" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Download Quality
+              </label>
+              <select
+                id="qualitySelect"
+                value={videoQuality}
+                onChange={(e) => setVideoQuality(e.target.value)}
+                className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+              >
+                <option value="720p">720p (HD)</option>
+                <option value="1080p">1080p (Full HD)</option>
+                <option value="1440p">1440p (2K)</option>
+                <option value="2160p">2160p (4K Ultra HD)</option>
+                <option value="highest">Highest Available</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="languageSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Language
+              </label>
+              <select
+                id="languageSelect"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+              >
+                <option value="english">English</option>
+                <option value="hindi">Hindi</option>
+                <option value="spanish">Spanish</option>
+                <option value="french">French</option>
+                <option value="german">German</option>
+                <option value="japanese">Japanese</option>
+                <option value="korean">Korean</option>
+                <option value="chinese">Chinese</option>
+              </select>
+            </div>
+          </div>
+
+          <SearchForm
+            onSearch={handleSearch}
+            searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             limit={limit}
             setLimit={setLimit}
@@ -182,7 +233,7 @@ export default function DashboardContent() {
             language={language}
           />
         </motion.div>
-        
+
         <AnimatePresence mode="wait">
           {isLoading && (
             <motion.div
@@ -196,7 +247,7 @@ export default function DashboardContent() {
             </motion.div>
           )}
         </AnimatePresence>
-        
+
         <AnimatePresence mode="wait">
           {error && (
             <motion.div
@@ -217,46 +268,44 @@ export default function DashboardContent() {
           )}
         </AnimatePresence>
       </div>
-      
+
       {(videos.length > 0 || uploadedVideos.length > 0) && (
         <div className="bg-white dark:bg-gray-800 backdrop-blur-md bg-opacity-90 dark:bg-opacity-90 rounded-xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
           <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
             <button
-              className={`px-4 py-2 font-medium text-sm transition-colors duration-300 relative ${
-                activeTab === 'search' 
-                  ? 'text-blue-600 dark:text-blue-400' 
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
+              className={`px-4 py-2 font-medium text-sm transition-colors duration-300 relative ${activeTab === 'search'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
               onClick={() => setActiveTab('search')}
               disabled={videos.length === 0}
             >
               Search Results {videos.length > 0 && `(${videos.length})`}
               {activeTab === 'search' && (
-                <motion.div 
+                <motion.div
                   layoutId="activeTab"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" 
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400"
                 />
               )}
             </button>
             <button
-              className={`px-4 py-2 font-medium text-sm transition-colors duration-300 relative ${
-                activeTab === 'uploaded' 
-                  ? 'text-blue-600 dark:text-blue-400' 
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
+              className={`px-4 py-2 font-medium text-sm transition-colors duration-300 relative ${activeTab === 'uploaded'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
               onClick={() => setActiveTab('uploaded')}
               disabled={uploadedVideos.length === 0}
             >
               Uploaded Videos {uploadedVideos.length > 0 && `(${uploadedVideos.length})`}
               {activeTab === 'uploaded' && (
-                <motion.div 
+                <motion.div
                   layoutId="activeTab"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" 
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400"
                 />
               )}
             </button>
           </div>
-          
+
           <AnimatePresence mode="wait">
             {activeTab === 'search' && videos.length > 0 && (
               <motion.div
@@ -266,14 +315,14 @@ export default function DashboardContent() {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                <VideoList 
-                  videos={videos} 
+                <VideoList
+                  videos={videos}
                   onProcessVideos={handleDownloadAndUpload}
                   isLoading={isLoading}
                 />
               </motion.div>
             )}
-            
+
             {activeTab === 'uploaded' && uploadedVideos.length > 0 && (
               <motion.div
                 key="uploaded-videos"
@@ -293,9 +342,9 @@ export default function DashboardContent() {
                       className="group border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-300"
                     >
                       <div className="aspect-video bg-gray-100 dark:bg-gray-700 relative overflow-hidden">
-                        <img 
-                          src={video.thumbnail} 
-                          alt={video.title} 
+                        <img
+                          src={video.thumbnail}
+                          alt={video.title}
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -304,12 +353,12 @@ export default function DashboardContent() {
                               <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                               <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                             </svg>
-                            <span className="text-xs text-white font-medium">{video.views.toLocaleString()}</span>
-                            
+                            <span className="text-xs text-white font-medium">{video.views?.toLocaleString() || '0'}</span>
+
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white ml-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
                               <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
                             </svg>
-                            <span className="text-xs text-white font-medium">{video.likes.toLocaleString()}</span>
+                            <span className="text-xs text-white font-medium">{video.likes?.toLocaleString() || '0'}</span>
                           </div>
                         </div>
                       </div>
@@ -317,12 +366,18 @@ export default function DashboardContent() {
                         <h3 className="font-semibold text-gray-900 dark:text-white line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
                           {video.title}
                         </h3>
-                        <div className="flex items-center mt-2 text-xs">
-                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full font-medium">
+                        <div className="flex flex-wrap items-center mt-2 gap-2">
+                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full font-medium text-xs">
                             {video.certification}
                           </span>
-                          <span className="ml-2 text-gray-500 dark:text-gray-400">
-                            {Math.floor(parseInt(video.duration) / 60)}:{(parseInt(video.duration) % 60).toString().padStart(2, '0')}
+                          {video.sourceResolution && (
+                            <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full font-medium text-xs">
+                              {video.sourceResolution}
+                              {video.resolution?.bitrate && ` @ ${video.resolution.bitrate}`}
+                            </span>
+                          )}
+                          <span className="text-gray-500 dark:text-gray-400 text-xs">
+                            {video.duration ? `${Math.floor(parseInt(video.duration) / 60)}:${(parseInt(video.duration) % 60).toString().padStart(2, '0')}` : '0:00'}
                           </span>
                         </div>
                       </div>
@@ -331,6 +386,7 @@ export default function DashboardContent() {
                 </div>
               </motion.div>
             )}
+            {/* <VideoPlayerExample videoData={videos[0] as any} /> */}
           </AnimatePresence>
         </div>
       )}

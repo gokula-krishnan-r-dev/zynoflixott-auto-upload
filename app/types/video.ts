@@ -44,6 +44,18 @@ export interface VideoItem {
   duration?: string;
   category?: string[];
   certification?: string;
+  sourceResolution?: string;
+  resolution?: {
+    width: number;
+    height: number;
+    quality: string;
+    bitrate: string;
+  };
+  streaming?: {
+    hls: string;
+    variants: Record<string, string>;
+    resolutions: string[];
+  };
   _id?: string;
 }
 
@@ -60,4 +72,16 @@ export interface UploadedVideo {
   duration: string;
   category: string[];
   certification: string;
+  sourceResolution: string;
+  resolution?: {
+    width: number;
+    height: number;
+    quality: string;
+    bitrate: string;
+  };
+  streaming: {
+    hls: string;
+    variants: Record<string, string>;
+    resolutions: string[];
+  };
 } 

@@ -11,7 +11,7 @@ let client: MongoClient | null = null;
 
 async function connectToDatabase() {
   if (client) return client;
-  
+
   client = new MongoClient(uri);
   await client.connect();
   console.log('Connected to MongoDB');
@@ -40,9 +40,9 @@ function createObjectId(id?: string): ObjectId {
 export async function POST(request: NextRequest) {
   try {
     const videoData = await request.json();
-    
+
     // Validate required fields
-    const requiredFields = ['title', 'description', 'thumbnail', 'preview_video', 'original_video'];
+    const requiredFields = ['title', 'description', 'thumbnail', 'hlsUrl', 'original_video'];
     for (const field of requiredFields) {
       if (!videoData[field]) {
         return NextResponse.json(
@@ -51,23 +51,30 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-    
+
     // Connect to MongoDB
     const client = await connectToDatabase();
     const db = client.db(dbName);
     const collection = db.collection(collectionName);
-    
+
     // Add additional fields and defaults
     const now = new Date();
     let userId = process.env.DEFAULT_USER_ID || '66cb15b1fbbbaed0d6f22e53'; // Default user ID
-    
+
     console.log(`Using user ID: ${userId}`);
-    
+
     // Use a default ObjectId if userId is not valid
     const userObjectId = createObjectId("681351b5a6361dff599447be");
-    
+
+    // Prepare document with streaming information
     const document = {
       ...videoData,
+      streaming: {
+        hls: videoData.hlsUrl,
+        variants: videoData.variantUrls || {},
+        resolutions: videoData.resolutions || []
+      },
+      sourceResolution: videoData.sourceResolution || 'unknown',
       user: userObjectId,
       viewsId: [],
       likesId: [],
@@ -106,12 +113,17 @@ export async function POST(request: NextRequest) {
       averageRating: 0,
       ratings: []
     };
-    
+
+    // Remove temporary properties that we've moved to the streaming object
+    delete document.variantUrls;
+    delete document.resolutions;
+    delete document.hlsUrl;
+
     // Insert document into MongoDB
     const result = await collection.insertOne(document);
-    
+
     console.log(`Saved video ${videoData.title} to MongoDB with ID: ${result.insertedId}`);
-    
+
     return NextResponse.json({
       ...document,
       _id: result.insertedId,
